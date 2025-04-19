@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,7 +62,22 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+                // Custom colors for our video downloader
+                downloader: {
+                    primary: '#8B5CF6', // Vibrant purple
+                    secondary: '#7E69AB', // Secondary purple
+                    accent: '#33C3F0', // Bright blue accent
+                    dark: '#1A1F2C', // Dark background
+                    light: '#F6F6F7', // Light background
+                    success: '#10B981', // Green for success indicators
+                    warning: '#F97316', // Orange for warnings
+                    error: '#EF4444', // Red for errors
+                    background: {
+                        light: '#FFFFFF',
+                        dark: '#121212'
+                    },
+                }
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
@@ -84,11 +100,29 @@ export default {
 					to: {
 						height: '0'
 					}
-				}
+				},
+                'pulse-download': {
+                    '0%, 100%': { 
+                        opacity: '1',
+                    },
+                    '50%': {
+                        opacity: '0.7',
+                    }
+                },
+                'shimmer': {
+                    '0%': {
+                        backgroundPosition: '-500px 0',
+                    },
+                    '100%': {
+                        backgroundPosition: '500px 0',
+                    },
+                }
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+                'pulse-download': 'pulse-download 1.5s ease-in-out infinite',
+                'shimmer': 'shimmer 1.5s infinite linear'
 			}
 		}
 	},
