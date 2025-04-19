@@ -9,13 +9,38 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata[]> 
     // Log the URL for debugging
     console.log('Fetching metadata for URL:', url);
     
-    // Create mock data - in a real implementation this would call your backend API
-    const videoId = `video_${Date.now()}`;
+    // Extract YouTube video ID if it's a YouTube URL
+    let videoId = '';
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      // Handle youtube.com/watch?v=VIDEO_ID format
+      if (url.includes('youtube.com/watch')) {
+        const urlObj = new URL(url);
+        videoId = urlObj.searchParams.get('v') || '';
+      } 
+      // Handle youtu.be/VIDEO_ID format
+      else if (url.includes('youtu.be')) {
+        videoId = url.split('/').pop() || '';
+      }
+    } else {
+      // For non-YouTube URLs, just use a timestamp
+      videoId = `video_${Date.now()}`;
+    }
+    
+    // For YouTube, create more realistic metadata
+    const isYouTube = videoId && (url.includes('youtube.com') || url.includes('youtu.be'));
+    const title = isYouTube 
+      ? `YouTube Video (ID: ${videoId})` 
+      : `Video from ${url}`;
+    
+    // Default thumbnail if it's a YouTube video
+    const thumbnail = isYouTube
+      ? `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`
+      : 'https://images.unsplash.com/photo-1611162616475-46b635cb6868?ixlib=rb-4.0.3&auto=format&fit=crop&w=1440&q=80';
     
     const video: VideoMetadata = {
-      id: videoId,
-      title: `Video from ${url}`,
-      thumbnail: 'https://images.unsplash.com/photo-1611162616475-46b635cb6868?ixlib=rb-4.0.3&auto=format&fit=crop&w=1440&q=80',
+      id: videoId || `video_${Date.now()}`,
+      title: title,
+      thumbnail: thumbnail,
       duration: 300,
       url: url,
       formats: [

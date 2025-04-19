@@ -20,7 +20,22 @@ export async function downloadVideo(
     const initialProgress = createInitialProgress(video.id, format.id, total);
     onProgressUpdate(initialProgress);
     
-    const response = await fetch(video.url);
+    // For YouTube videos, we'd normally need a backend service
+    // For this demo, we'll simulate a download of a sample video
+    let downloadUrl = video.url;
+    
+    // For YouTube videos, use a sample MP4 or MP3 file based on format
+    if (video.url.includes('youtube.com') || video.url.includes('youtu.be')) {
+      if (format.isAudioOnly) {
+        // Sample MP3 file (Big Buck Bunny audio)
+        downloadUrl = 'https://ia600302.us.archive.org/29/items/BigBuckBunny_124/Content/big_buck_bunny_soundtrack.mp3';
+      } else {
+        // Sample MP4 file (Big Buck Bunny)
+        downloadUrl = 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4';
+      }
+    }
+    
+    const response = await fetch(downloadUrl);
     if (!response.ok) {
       throw new Error(`Failed to download: ${response.statusText}`);
     }
