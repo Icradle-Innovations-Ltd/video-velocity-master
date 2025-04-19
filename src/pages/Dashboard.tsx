@@ -1,33 +1,40 @@
-
 import React, { useState } from 'react';
 import { URLInput } from '@/components/URLInput';
 import { VideoCard } from '@/components/VideoCard';
 import { DownloadItem } from '@/components/DownloadItem';
 import { NetworkStatus } from '@/components/NetworkStatus';
-import { mockVideos, mockDownloads } from '@/lib/mockData';
 import { VideoMetadata, VideoFormat, DownloadProgress } from '@/types/video';
 import { useToast } from '@/components/ui/use-toast';
+import { fetchVideoMetadata, downloadVideo } from '@/lib/videoDownloader';
 
 const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [videos, setVideos] = useState<VideoMetadata[]>([]);
-  const [activeDownloads, setActiveDownloads] = useState<DownloadProgress[]>(mockDownloads);
+  const [activeDownloads, setActiveDownloads] = useState<DownloadProgress[]>([]);
   const { toast } = useToast();
 
-  const handleFetchMetadata = (url: string) => {
+  const handleFetchMetadata = async (url: string) => {
     setIsLoading(true);
     
-    // Simulate API call delay
-    setTimeout(() => {
-      // Use mock data for demonstration
-      setVideos(mockVideos);
-      setIsLoading(false);
+    try {
+      // Use our real metadata fetching function
+      const fetchedVideos = await fetchVideoMetadata(url);
+      setVideos(fetchedVideos);
       
       toast({
         title: "Video metadata fetched",
-        description: `Successfully analyzed ${mockVideos.length} videos`,
+        description: `Successfully analyzed ${fetchedVideos.length} videos`,
       });
-    }, 1500);
+    } catch (error) {
+      console.error("Error fetching metadata:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch video metadata. Please check the URL and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDownload = (video: VideoMetadata, format: VideoFormat) => {
@@ -50,112 +57,38 @@ const Dashboard = () => {
       description: `Added "${video.title}" to download queue`,
     });
     
-    // Simulate download progress
-    simulateDownloadProgress(newDownload);
-  };
-
-  const simulateDownloadProgress = (download: DownloadProgress) => {
-    // For demo purposes only - simulates download progress updates
-    let progress = 0;
-    const total = download.total;
-    let speed = Math.random() * 10000000 + 2000000; // Random speed between 2-12 MB/s
-    
-    // Generate random chunks for visualization
-    const chunks = Array.from({ length: 8 }, (_, i) => ({
-      id: i,
-      progress: 0,
-      status: i === 0 ? 'downloading' as const : 'pending' as const
-    }));
-    
-    // Update download to start downloading
-    setActiveDownloads(prev => 
-      prev.map(d => 
-        d.videoId === download.videoId ? 
-        { 
-          ...d, 
-          status: 'downloading', 
-          speed,
-          chunks
-        } : d
-      )
-    );
-    
-    const interval = setInterval(() => {
-      progress += Math.random() * 5; // Random increment up to 5%
-      
-      if (progress >= 100) {
-        progress = 100;
-        clearInterval(interval);
-        
-        // Mark download as complete
-        setActiveDownloads(prev => 
-          prev.map(d => 
-            d.videoId === download.videoId ? 
-            { 
-              ...d, 
-              progress: 100,
-              downloaded: total,
-              speed: 0,
-              eta: 0,
-              status: 'completed',
-              chunks: d.chunks?.map(c => ({ ...c, progress: 100, status: 'completed' }))
-            } : d
-          )
-        );
-        
-        toast({
-          title: "Download complete",
-          description: "Your video has been downloaded successfully",
-        });
-        
-        return;
-      }
-      
-      // Calculate current downloaded bytes and ETA
-      const downloaded = Math.floor((progress / 100) * total);
-      const remaining = total - downloaded;
-      const eta = remaining / speed;
-      
-      // Update chunks randomly to simulate parallel downloading
-      const updatedChunks = chunks.map((chunk, index) => {
-        // Determine how many chunks are active based on progress
-        const activeChunkCount = Math.ceil((progress / 100) * chunks.length);
-        
-        if (index < activeChunkCount - 1) {
-          // Completed chunks
-          return { ...chunk, progress: 100, status: 'completed' as const };
-        } else if (index === activeChunkCount - 1) {
-          // Currently downloading chunk
-          const chunkProgress = (progress % (100 / chunks.length)) * (chunks.length);
-          return { 
-            ...chunk, 
-            progress: Math.min(chunkProgress, 100), 
-            status: 'downloading' as const 
-          };
-        } else if (index === activeChunkCount) {
-          // Next pending chunk
-          return { ...chunk, status: 'pending' as const, progress: 0 };
-        } else {
-          // Future chunks
-          return { ...chunk, status: 'pending' as const, progress: 0 };
-        }
-      });
-      
-      // Update download progress
+    // Start the actual download
+    downloadVideo(video, format, (progress) => {
+      // Update download progress in state
       setActiveDownloads(prev => 
         prev.map(d => 
-          d.videoId === download.videoId ? 
-          { 
-            ...d, 
-            progress,
-            downloaded,
-            speed: speed * (0.8 + Math.random() * 0.4), // Vary speed slightly
-            eta,
-            chunks: updatedChunks
-          } : d
+          d.videoId === video.id ? progress : d
         )
       );
-    }, 500);
+      
+      // Notify when download completes
+      if (progress.status === 'completed' && 
+          !activeDownloads.some(d => d.videoId === video.id && d.status === 'completed')) {
+        toast({
+          title: "Download complete",
+          description: `${video.title} has been downloaded successfully`,
+        });
+      }
+      
+      // Notify if download fails
+      if (progress.status === 'failed' && 
+          !activeDownloads.some(d => d.videoId === video.id && d.status === 'failed')) {
+        toast({
+          title: "Download failed",
+          description: `Failed to download ${video.title}`,
+          variant: "destructive",
+        });
+      }
+    }).catch(error => {
+      console.error("Download error:", error);
+      
+      // Already handled in the downloadVideo function
+    });
   };
 
   const handlePauseDownload = (videoId: string) => {
@@ -172,31 +105,21 @@ const Dashboard = () => {
   };
 
   const handleResumeDownload = (videoId: string) => {
-    const download = activeDownloads.find(d => d.videoId === videoId);
+    setActiveDownloads(prev => 
+      prev.map(d => 
+        d.videoId === videoId ? 
+        { 
+          ...d, 
+          status: 'downloading',
+          speed: Math.random() * 10000000 + 2000000 // Random speed between 2-12 MB/s
+        } : d
+      )
+    );
     
-    if (download) {
-      setActiveDownloads(prev => 
-        prev.map(d => 
-          d.videoId === videoId ? 
-          { 
-            ...d, 
-            status: 'downloading',
-            speed: Math.random() * 10000000 + 2000000 // Random speed between 2-12 MB/s
-          } : d
-        )
-      );
-      
-      // Continue simulating progress
-      simulateDownloadProgress({
-        ...download,
-        status: 'downloading'
-      });
-      
-      toast({
-        title: "Download resumed",
-        description: "Your download is continuing",
-      });
-    }
+    toast({
+      title: "Download resumed",
+      description: "Your download is continuing",
+    });
   };
 
   const handleCancelDownload = (videoId: string) => {
@@ -225,12 +148,12 @@ const Dashboard = () => {
 
   // Find video titles for downloads
   const getVideoTitle = (videoId: string) => {
-    const video = mockVideos.find(v => v.id === videoId);
+    const video = videos.find(v => v.id === videoId);
     return video?.title || 'Unknown Video';
   };
 
   const getVideoThumbnail = (videoId: string) => {
-    const video = mockVideos.find(v => v.id === videoId);
+    const video = videos.find(v => v.id === videoId);
     return video?.thumbnail;
   };
 
