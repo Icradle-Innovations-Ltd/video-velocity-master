@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { URLInput } from '@/components/URLInput';
 import { NetworkStatus } from '@/components/NetworkStatus';
@@ -145,17 +144,21 @@ const Dashboard = () => {
   // Helper functions to get video details for downloads
   const getVideoTitles = () => {
     const titles: Record<string, string> = {};
-    videos.forEach(v => {
-      titles[v.id] = v.title;
-    });
+    if (Array.isArray(videos)) {
+      videos.forEach(v => {
+        titles[v.id] = v.title;
+      });
+    }
     return titles;
   };
 
   const getVideoThumbnails = () => {
     const thumbnails: Record<string, string | undefined> = {};
-    videos.forEach(v => {
-      thumbnails[v.id] = v.thumbnail;
-    });
+    if (Array.isArray(videos)) {
+      videos.forEach(v => {
+        thumbnails[v.id] = v.thumbnail;
+      });
+    }
     return thumbnails;
   };
 
