@@ -1,11 +1,13 @@
+
 import React, { useState } from 'react';
 import { URLInput } from '@/components/URLInput';
-import { VideoCard } from '@/components/VideoCard';
-import { DownloadItem } from '@/components/DownloadItem';
 import { NetworkStatus } from '@/components/NetworkStatus';
 import { VideoMetadata, VideoFormat, DownloadProgress } from '@/types/video';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { fetchVideoMetadata, downloadVideo } from '@/lib/videoDownloader';
+import { VideoAnalysis } from '@/components/VideoAnalysis';
+import { ActiveDownloads } from '@/components/ActiveDownloads';
+import { OptimizationTips } from '@/components/OptimizationTips';
 
 const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -17,7 +19,6 @@ const Dashboard = () => {
     setIsLoading(true);
     
     try {
-      // Use our real metadata fetching function
       const fetchedVideos = await fetchVideoMetadata(url);
       setVideos(fetchedVideos);
       
@@ -59,14 +60,12 @@ const Dashboard = () => {
     
     // Start the actual download
     downloadVideo(video, format, (progress) => {
-      // Update download progress in state
       setActiveDownloads(prev => 
         prev.map(d => 
           d.videoId === video.id ? progress : d
         )
       );
       
-      // Notify when download completes
       if (progress.status === 'completed' && 
           !activeDownloads.some(d => d.videoId === video.id && d.status === 'completed')) {
         toast({
@@ -75,7 +74,6 @@ const Dashboard = () => {
         });
       }
       
-      // Notify if download fails
       if (progress.status === 'failed' && 
           !activeDownloads.some(d => d.videoId === video.id && d.status === 'failed')) {
         toast({
@@ -86,8 +84,6 @@ const Dashboard = () => {
       }
     }).catch(error => {
       console.error("Download error:", error);
-      
-      // Already handled in the downloadVideo function
     });
   };
 
@@ -146,15 +142,21 @@ const Dashboard = () => {
     setVideos(prev => prev.filter(v => v.id !== videoId));
   };
 
-  // Find video titles for downloads
-  const getVideoTitle = (videoId: string) => {
-    const video = videos.find(v => v.id === videoId);
-    return video?.title || 'Unknown Video';
+  // Helper functions to get video details for downloads
+  const getVideoTitles = () => {
+    const titles: Record<string, string> = {};
+    videos.forEach(v => {
+      titles[v.id] = v.title;
+    });
+    return titles;
   };
 
-  const getVideoThumbnail = (videoId: string) => {
-    const video = videos.find(v => v.id === videoId);
-    return video?.thumbnail;
+  const getVideoThumbnails = () => {
+    const thumbnails: Record<string, string | undefined> = {};
+    videos.forEach(v => {
+      thumbnails[v.id] = v.thumbnail;
+    });
+    return thumbnails;
   };
 
   return (
@@ -166,67 +168,24 @@ const Dashboard = () => {
       
       <URLInput onFetchMetadata={handleFetchMetadata} isLoading={isLoading} />
       
-      {videos.length > 0 && (
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Video Analysis</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {videos.map(video => (
-              <VideoCard 
-                key={video.id} 
-                video={video} 
-                onDownload={handleDownload} 
-                onRemove={() => handleRemoveVideo(video.id)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      <VideoAnalysis 
+        videos={videos}
+        onDownload={handleDownload}
+        onRemoveVideo={handleRemoveVideo}
+      />
       
-      {activeDownloads.length > 0 && (
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Active Downloads</h2>
-          <div className="space-y-4">
-            {activeDownloads.map(download => (
-              <DownloadItem 
-                key={download.videoId}
-                download={download}
-                videoTitle={getVideoTitle(download.videoId)}
-                thumbnail={getVideoThumbnail(download.videoId)}
-                onPause={() => handlePauseDownload(download.videoId)}
-                onResume={() => handleResumeDownload(download.videoId)}
-                onCancel={() => handleCancelDownload(download.videoId)}
-                onRemove={() => handleRemoveDownload(download.videoId)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      <ActiveDownloads 
+        downloads={activeDownloads}
+        titles={getVideoTitles()}
+        thumbnails={getVideoThumbnails()}
+        onPause={handlePauseDownload}
+        onResume={handleResumeDownload}
+        onCancel={handleCancelDownload}
+        onRemove={handleRemoveDownload}
+      />
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <h2 className="text-xl font-semibold mb-4">Optimization Tips</h2>
-          <div className="p-4 border rounded-lg bg-card">
-            <ul className="space-y-2">
-              <li className="flex items-start gap-2">
-                <div className="h-5 w-5 rounded-full bg-primary flex-shrink-0 flex items-center justify-center text-white text-xs">1</div>
-                <p>Use multi-threaded downloads for maximum speed</p>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="h-5 w-5 rounded-full bg-primary flex-shrink-0 flex items-center justify-center text-white text-xs">2</div>
-                <p>Enable proxy settings if you're on a restricted network</p>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="h-5 w-5 rounded-full bg-primary flex-shrink-0 flex items-center justify-center text-white text-xs">3</div>
-                <p>Schedule large downloads during off-peak hours</p>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="h-5 w-5 rounded-full bg-primary flex-shrink-0 flex items-center justify-center text-white text-xs">4</div>
-                <p>Convert videos to different formats for compatibility</p>
-              </li>
-            </ul>
-          </div>
-        </div>
-        
+        <OptimizationTips />
         <div>
           <NetworkStatus 
             isConnected={true} 
