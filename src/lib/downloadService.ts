@@ -32,30 +32,34 @@ export async function downloadVideo(
       throw new Error('Failed to start download');
     }
 
-    // Simulate download progress on the client-side for simplicity
-    const simulateDownload = async () => {
-      let currentProgress = initialProgress;
-      for (let i = 0; i <= 100; i += 10) {
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate time delay
-        const received = Math.round(total * (i / 100));
-        currentProgress = updateDownloadProgress(currentProgress, received, total, Date.now(), received);
-        onProgressUpdate(currentProgress);
-      }
-      const completedProgress = createCompletedProgress(video.id, format.id, total);
-      onProgressUpdate(completedProgress);
-    };
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
 
-    simulateDownload();
+    const title = video.title.replace(/[^a-zA-Z0-9]/g, '_');
+    const filename = `${title}.${format.extension || 'mp4'}`;
+    a.download = filename;
+
+    document.body.appendChild(a);
+    a.click();
+
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    const completedProgress = createCompletedProgress(video.id, format.id, total);
+    onProgressUpdate(completedProgress);
 
   } catch (error) {
     console.error('Download error:', error);
-    
+
     onProgressUpdate(createFailedProgress(video.id, format.id, format.filesize || 0));
     throw error;
   }
 }
 /**
- * Control active downloads (pause, resume, cancel)
+ * Control active downloads (pause, resume, cancel)-/
  */
 export function controlDownload(
   downloadId: string, 

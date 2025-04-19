@@ -17,16 +17,22 @@ app.post('/download', async (req, res) => {
     }
 
     try {
-        const videoInfo = await ytdl.getInfo(url);
-        const title = videoInfo.videoDetails.title;
-        let formats = videoInfo.formats.filter(
-            f => f.hasAudio && f.hasVideo && f.container === "mp4"
-        );
-        console.log(formats)
+        const info = await ytdl.getInfo(url);
+        const format = info.formats.find(f => f.itag === parseInt(formatId));
 
-        res.header("Content-Disposition", `attachment; filename="${title}.mp4"`);
-        ytdl(url, { format: formats[formats.length - 1].itag }).pipe(res);
+        if (!format) {
+            return res.status(400).send({ error: "Invalid format ID" });
+        }
+
+        const title = info.videoDetails.title.replace(/[^a-zA-Z0-9]/g, "_");
+        const sanitizedTitle = title.replace(/[/\\?%*:|"<>]/g, '');
+        const filename = `${sanitizedTitle}.${format.container}`;
+
+        res.header("Content-Disposition", `attachment; filename="${filename}"`);
+        ytdl(url, { format: format.itag }).pipe(res);
+
     } catch (error) {
+        console.log(error)
         console.error("Download error:", error);
         res.status(500).send({ error: "Failed to download video" });
     }
