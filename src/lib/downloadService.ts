@@ -20,69 +20,33 @@ export async function downloadVideo(
     const initialProgress = createInitialProgress(video.id, format.id, total);
     onProgressUpdate(initialProgress);
     
-    // For YouTube videos, we'd normally need a backend service
-    // For this demo, we'll simulate a download of a sample video
-    let downloadUrl = video.url;
-    
-    // For YouTube videos, use a sample MP4 or MP3 file based on format
-    if (video.url.includes('youtube.com') || video.url.includes('youtu.be')) {
-      if (format.isAudioOnly) {
-        // Sample MP3 file (Big Buck Bunny audio)
-        downloadUrl = 'https://ia600302.us.archive.org/29/items/BigBuckBunny_124/Content/big_buck_bunny_soundtrack.mp3';
-      } else {
-        // Sample MP4 file (Big Buck Bunny)
-        downloadUrl = 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4';
-      }
-    }
-    
-    const response = await fetch(downloadUrl);
+    const response = await fetch('http://localhost:5000/download', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url: video.url, format: format.id }),
+    });
+
     if (!response.ok) {
-      throw new Error(`Failed to download: ${response.statusText}`);
+      throw new Error('Failed to start download');
     }
-    
-    const contentLength = response.headers.get('Content-Length');
-    const totalSize = contentLength ? parseInt(contentLength, 10) : total;
-    
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('Unable to create reader for response body');
-    }
-    
-    let receivedLength = 0;
-    let lastUpdate = Date.now();
-    let lastBytes = 0;
-    let currentProgress = initialProgress;
-    
-    while (true) {
-      const { done, value } = await reader.read();
-      
-      if (done) {
-        const finalProgress = createCompletedProgress(video.id, format.id, totalSize);
-        onProgressUpdate(finalProgress);
-        
-        await saveDownloadedFile(response, video.title, format.extension || 'mp4');
-        break;
+
+    // Simulate download progress on the client-side for simplicity
+    const simulateDownload = async () => {
+      let currentProgress = initialProgress;
+      for (let i = 0; i <= 100; i += 10) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate time delay
+        const received = Math.round(total * (i / 100));
+        currentProgress = updateDownloadProgress(currentProgress, received, total, Date.now(), received);
+        onProgressUpdate(currentProgress);
       }
-      
-      receivedLength += value.length;
-      
-      currentProgress = updateDownloadProgress(
-        currentProgress,
-        receivedLength,
-        totalSize,
-        lastUpdate,
-        lastBytes
-      );
-      
-      // Update timing values for next iteration
-      const now = Date.now();
-      if (now - lastUpdate > 500) {
-        lastUpdate = now;
-        lastBytes = receivedLength;
-      }
-      
-      onProgressUpdate(currentProgress);
-    }
+      const completedProgress = createCompletedProgress(video.id, format.id, total);
+      onProgressUpdate(completedProgress);
+    };
+
+    simulateDownload();
+
   } catch (error) {
     console.error('Download error:', error);
     
@@ -90,28 +54,6 @@ export async function downloadVideo(
     throw error;
   }
 }
-
-async function saveDownloadedFile(
-  response: Response, 
-  title: string, 
-  extension: string
-): Promise<void> {
-  const blob = await response.blob();
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.style.display = 'none';
-  a.href = url;
-  
-  const filename = `${title}.${extension}`.replace(/[^a-z0-9.]/gi, '_');
-  a.download = filename;
-  
-  document.body.appendChild(a);
-  a.click();
-  
-  window.URL.revokeObjectURL(url);
-  document.body.removeChild(a);
-}
-
 /**
  * Control active downloads (pause, resume, cancel)
  */

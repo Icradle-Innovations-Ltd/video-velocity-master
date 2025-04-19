@@ -1,45 +1,52 @@
-const express = require('express');
-const { spawn } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+const express = require("express");
+const ytdl = require("ytdl-core");
+const cors = require("cors");
+
 
 const app = express();
-const port = 3000;
+const port = 5000;
 
-app.get('/download', (req, res) => {
-  const videoUrl = req.query.url;
+app.use(cors());
+app.use(express.json());
 
-  if (!videoUrl) {
-    return res.status(400).send('URL parameter is required');
-  }
+app.post('/download', async (req, res) => {
+    const { url } = req.body;
 
-  const outputDir = path.join(__dirname, 'downloads');
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir);
-  }
-    
-  const outputFileTemplate = path.join(outputDir, '%(title)s-%(id)s.%(ext)s');
-
-  const ytDlpProcess = spawn('yt-dlp', [
-    '-o', outputFileTemplate,
-    videoUrl,
-  ]);
-
-  ytDlpProcess.stdout.on('data', (data) => {
-    console.log(`stdout: ${data}`);
-  });
-
-  ytDlpProcess.stderr.on('data', (data) => {
-    console.error(`stderr: ${data}`);
-  });
-
-  ytDlpProcess.on('close', (code) => {
-    if (code === 0) {
-      res.send('Download complete!');
-    } else {
-      res.status(500).send(`Download failed with code ${code}`);
+    if (!url) {
+        return res.status(400).send({ error: "URL is required" });
     }
-  });
+
+    try {
+        const videoInfo = await ytdl.getInfo(url);
+        const title = videoInfo.videoDetails.title;
+        let formats = videoInfo.formats.filter(
+            f => f.hasAudio && f.hasVideo && f.container === "mp4"
+        );
+        console.log(formats)
+
+        res.header("Content-Disposition", `attachment; filename="${title}.mp4"`);
+        ytdl(url, { format: formats[formats.length - 1].itag }).pipe(res);
+    } catch (error) {
+        console.error("Download error:", error);
+        res.status(500).send({ error: "Failed to download video" });
+    }
+});
+
+app.post('/metadata', async (req, res) => {
+    const { url } = req.body;
+
+    if (!url) {
+        return res.status(400).send({ error: "URL is required" });
+    }
+
+    try {
+        const info = await ytdl.getInfo(url);
+        const formats = ytdl.filterFormats(info.formats, "audioandvideo").map(format => ({ itag: format.itag, qualityLabel: format.qualityLabel }));
+        res.json({ title: info.videoDetails.title, formats });
+    } catch (error) {
+        console.error("Metadata error:", error);
+        res.status(500).send({ error: "Failed to fetch metadata" });
+    }
 });
 
 app.listen(port, () => {
